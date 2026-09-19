@@ -1,0 +1,80 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-go-tools:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Build sshchmod (android/arm64)
+        working-directory: tools/sshchmod
+        run: |
+          go mod tidy
+          GOOS=android GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="-s -w" -o sshchmod .
+
+      - name: Build sshrun (android/arm64)
+        working-directory: tools/sshrun
+        run: |
+          go mod tidy
+          GOOS=android GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="-s -w" -o sshrun .
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: go-tools
+          path: |
+            tools/sshchmod/sshchmod
+            tools/sshrun/sshrun
+
+  build-app:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+
+      - name: Assemble debug APK
+        run: gradle assembleDebug --no-daemon
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: app-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+
+  package-module:
+    needs: [build-go-tools]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: go-tools
+          path: module/system/vendor/bin
+
+      - name: Set executable bits and zip the module
+        run: |
+          chmod +x module/system/vendor/bin/sshchmod module/system/vendor/bin/sshrun
+          chmod +x module/scripts/*.sh module/service.sh module/customize.sh
+          cd module
+          zip -r ../rclone-magisk-cl.zip . -x '*.gitkeep'
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: magisk-module
+          path: rclone-magisk-cl.zip

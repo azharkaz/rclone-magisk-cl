@@ -1,0 +1,6 @@
+id=rclone_magisk_cl
+name=Cloud/SSH Mount
+version=v0.1.0
+versionCode=1
+author=azharkaz
+description=Universal cloud + SSH/SFTP storage mounting as local folders, with real chmod support on SSH remotes via sshchmod/sshrun.
